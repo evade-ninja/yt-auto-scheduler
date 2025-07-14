@@ -1,0 +1,40 @@
+{
+   "channels": [
+      {
+         "channelName": "Channel 1",
+         "channelID": "secret_channel_id1",
+         "secretPath": "secrets-c1.json",
+         "tokenPath": "token-c1.json",
+         "wards": [
+            {
+               "broadcastTitle": "First Broadcast",
+               "startTime": "09:00:00",
+               "streamID": "firstBroadcastKey"
+            },
+            {
+               "broadcastTitle": "Second Broadcast",
+               "startTime": "12:00:00",
+               "streamID": "secondBroadcastKey"
+            }
+         ]
+      },
+      {
+         "channelName": "Channel 2",
+         "channelID": "secret_channel_id2",
+         "secretPath": "secrets-c2.json",
+         "tokenPath": "token-c2.json",
+         "wards": [
+            {
+               "broadcastTitle": "First Broadcast",
+               "startTime": "09:00:00",
+               "streamID": "firstBroadcastKey"
+            },
+            {
+               "broadcastTitle": "Second Broadcast",
+               "startTime": "12:00:00",
+               "streamID": "secondBroadcastKey"
+            }
+         ]
+      }
+   ]
+}
