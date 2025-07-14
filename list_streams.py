@@ -4,21 +4,20 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-#SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
-SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
+SCOPES = ["https://www.googleapis.com/auth/youtube"]
 
 def authenticate_youtube():
     creds = None
-    if os.path.exists("token2.json"):
-        creds = Credentials.from_authorized_user_file("token2.json", SCOPES)
+    if os.path.exists("token-sc.json"):
+        creds = Credentials.from_authorized_user_file("token-sc.json", SCOPES)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(google.auth.transport.requests.Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file("client_secrets2.json", SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file("secrets-sc.json", SCOPES)
             creds = flow.run_local_server(port=8080)
-        with open("token2.json", "w") as token:
+        with open("token-sc.json", "w") as token:
             token.write(creds.to_json())
 
     return build("youtube", "v3", credentials=creds)
