@@ -10,7 +10,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 # Required scope for scheduling and binding broadcasts
-SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
+SCOPES = ["https://www.googleapis.com/auth/youtube"]
 
 def authenticate_youtube(tokenPath, secretPath):
     creds = None
