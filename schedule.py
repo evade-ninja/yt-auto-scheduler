@@ -71,7 +71,7 @@ def update_broadcast(youtube, oldBody, start_time):
         body=newBody
     )
     response = request.execute()
-    return response
+    return newBody['id']
 
 def bind_broadcast_to_stream(youtube, broadcast_id, stream_id):
     request = youtube.liveBroadcasts().bind(
@@ -103,10 +103,6 @@ def main():
     with open(args.config) as c:
         config = json.load(c)
 
-    #authenticate youtube api
-    
-    
-
     #Calculate next sunday
     today = datetime.now(pytz.timezone("America/Boise"))
     days_until_sunday = (6 - today.weekday()) % 7
@@ -121,13 +117,21 @@ def main():
     for channel in config['channels']:
         print(f"Scheduling for channel: {channel['channelName']}")
         youtube = authenticate_youtube(channel['tokenPath'], channel['secretPath'])
+        videos = []
         for ward in channel['wards']:
             start_time = datetime.fromisoformat(f"{next_sunday}T{ward['startTime']}").astimezone(pytz.utc)
             start_time = start_time.replace(tzinfo=None)
             print(f"\tScheduling {ward['broadcastTitle']} for {start_time.isoformat()}")
             broadcast = schedule_broadcast(youtube, channel['channelID'], ward['broadcastTitle'], "", start_time)
             bind_broadcast_to_stream(youtube, broadcast["id"], ward['streamID'])
-            update_broadcast(youtube, broadcast, start_time)
+            video_id = update_broadcast(youtube, broadcast, start_time)
+
+            #record the video_id so that we can remove the videos later
+            videos.append({
+                "id": video_id,
+                "startTime": ward['startTime']
+            })
+
 
 if __name__ == "__main__":
     main()

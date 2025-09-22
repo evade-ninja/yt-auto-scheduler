@@ -8,4 +8,4 @@ Copy sample.config.json to config.json and add your information. You can get str
 
 You'll need to run schedule.py manually once to obtain the refresh tokens. After that - it should be able to run automagically on its own.
 
-Depends on: google-auth, google-auth-oauthlib, and google-api-python-client
+Depends on: google-auth, google-auth-oauthlib, google-api-python-client, pytz
