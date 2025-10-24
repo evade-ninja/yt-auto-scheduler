@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import argparse
 import datetime
 import pytz
@@ -129,8 +130,17 @@ def main():
             #record the video_id so that we can remove the videos later
             videos.append({
                 "id": video_id,
-                "startTime": ward['startTime']
+                "startTime": ward['startTime'],
+                "ward": ward['broadcastTitle']
             })
+
+            #wait a little bit
+            time.sleep(5)
+        
+        #Write out the video file
+        with open(channel['videoList'], 'w') as v_file:
+            json.dump(videos, v_file)
+            v_file.close()
 
 
 if __name__ == "__main__":
