@@ -57,14 +57,18 @@ def main():
             request = youtube.videos().list(part="status", id=video['id'])
             response = request.execute()
 
-            newBody = response['items'][0]
-            newBody['status']['privacyStatus'] = 'private'
+            #Only make the video private if it is public
+            if response['items'][0]['status']['privacyStatus'] == 'public':
+                newBody = response['items'][0]
+                newBody['status']['privacyStatus'] = 'private'
 
-            request = youtube.videos().update(
-                part = "status",
-                body = newBody
-            )
-            response = request.execute()
+                request = youtube.videos().update(
+                    part = "status",
+                    body = newBody
+                )
+                response = request.execute()
+            #wait a little bit
+            time.sleep(5)
 
 if __name__ == "__main__":
     main()

@@ -53,9 +53,17 @@ def main():
             video_list = json.load(v_file)
         
         for video in video_list:
-            print(f"\tRemoving {video['id']}")
-            request = youtube.videos().delete(id=video['id'])
+            #If the video isn't "private", then it won't be removed
+            request = youtube.videos().list(part="status", id=video['id'])
             response = request.execute()
+
+            if response['items'][0]['status']['privacyStatus'] == 'private':
+                print(f"\tRemoving {video['id']}")
+                request = youtube.videos().delete(id=video['id'])
+                response = request.execute()
+            
+            #wait a little bit
+            time.sleep(5)
 
 if __name__ == "__main__":
     main()
