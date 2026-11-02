@@ -10,6 +10,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from status_report import StatusReport
 
 # Required scope for scheduling and binding broadcasts
 SCOPES = ["https://www.googleapis.com/auth/youtube"]
@@ -43,46 +44,56 @@ def main():
     with open(args.config) as c:
         config = json.load(c)
 
-    for channel in config['channels']:
-        print(f"Removing videos for channel: {channel['channelName']}")
-        youtube = authenticate_youtube(channel['tokenPath'], channel['secretPath'])
+    with StatusReport(config, "remove_videos.py") as report:
+        for channel in config['channels']:
+            print(f"Removing videos for channel: {channel['channelName']}")
+            report.context = f"Channel: {channel['channelName']}"
+            youtube = authenticate_youtube(channel['tokenPath'], channel['secretPath'])
 
-        #Read in the videos from the videoList
-        video_list = []
+            #Read in the videos from the videoList
+            video_list = []
 
-        with open(channel['videoList']) as v_file:
-            video_list = json.load(v_file)
-        
-        for video in video_list:
-            attempt = 0
-            success = False
+            with open(channel['videoList']) as v_file:
+                video_list = json.load(v_file)
 
-            while attempt < 5 and not success:
-                attempt += 1
-                print(f"\t\tAttempt {attempt}/5 for {video['id']}")
+            for video in video_list:
+                report.context = f"{channel['channelName']} | https://www.youtube.com/watch?v={video['id']}"
+                attempt = 0
+                success = False
 
-                try:
-                    #If the video isn't "private", then it won't be removed
-                    request = youtube.videos().list(part="status", id=video['id'])
-                    response = request.execute()
+                while attempt < 5 and not success:
+                    attempt += 1
+                    print(f"\t\tAttempt {attempt}/5 for {video['id']}")
 
-                    if response['items']:
-                        if response['items'][0]['status']['privacyStatus'] == 'private':
-                            print(f"\tRemoving {video['id']}")
-                            request = youtube.videos().delete(id=video['id'])
-                            response = request.execute()
-                    else:
-                        print("Couldn't find video with ID:" + video['id'])
-                    success = True
-                except HttpError as error:
-                    print(f"\t\tError removing {video['id']}: {error}")
-                    if attempt < 5:
-                        time.sleep(10)
-                    else:
-                        print(f"\t\tGiving up on {video['id']} after 5 attempts.")
-            
-            #wait a little bit
-            time.sleep(5)
+                    try:
+                        #If the video isn't "private", then it won't be removed
+                        request = youtube.videos().list(part="status", id=video['id'])
+                        response = request.execute()
+
+                        if response['items']:
+                            if response['items'][0]['status']['privacyStatus'] == 'private':
+                                print(f"\tRemoving {video['id']}")
+                                request = youtube.videos().delete(id=video['id'])
+                                response = request.execute()
+                                report.add('SUCCESS', f'{report.context} | Video removed')
+                            else:
+                                report.add('SKIPPED', f"{report.context} | Privacy is {response['items'][0]['status']['privacyStatus']}; only private videos are removed")
+                        else:
+                            print("Couldn't find video with ID:" + video['id'])
+                            report.add('WARNING', f'{report.context} | Video not found; may already have been removed')
+                        success = True
+                    except HttpError as error:
+                        print(f"\t\tError removing {video['id']}: {error}")
+                        if attempt < 5:
+                            report.add('WARNING', f'{report.context} | Attempt {attempt}/5 failed: {error}; retrying')
+                            time.sleep(10)
+                        else:
+                            report.add('ERROR', f'{report.context} | Failed to remove video after 5 attempts: {error}')
+                            print(f"\t\tGiving up on {video['id']} after 5 attempts.")
+
+                #wait a little bit
+                time.sleep(5)
+
 
 if __name__ == "__main__":
     main()

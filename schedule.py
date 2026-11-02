@@ -10,6 +10,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from status_report import StatusReport
 
 # Required scope for scheduling and binding broadcasts
 SCOPES = ["https://www.googleapis.com/auth/youtube"]
@@ -84,12 +85,14 @@ def bind_broadcast_to_stream(youtube, broadcast_id, stream_id):
     return request.execute()
 
 
-def retry_operation(operation, *args):
+def retry_operation(operation, *args, report=None):
     for attempt in range(1, 6):
         try:
             return operation(*args)
         except HttpError as error:
             print(f"\t\t{operation.__name__} failed (attempt {attempt}/5): {error}")
+            if report is not None:
+                report.add('WARNING', f'{report.context}: attempt {attempt}/5 failed: {error}')
             if attempt == 5:
                 print(f"\t\tGiving up on {operation.__name__} after 5 attempts.")
                 raise
@@ -117,45 +120,60 @@ def main():
     with open(args.config) as c:
         config = json.load(c)
 
-    #Calculate next sunday
-    today = datetime.now(pytz.timezone("America/Boise"))
-    days_until_sunday = (6 - today.weekday()) % 7
+    with StatusReport(config, "schedule.py") as report:
+        #Calculate next sunday
+        today = datetime.now(pytz.timezone("America/Boise"))
+        days_until_sunday = (6 - today.weekday()) % 7
 
-    if days_until_sunday == 0:  # If today is Sunday, move to the next Sunday
-        days_until_sunday = 7
+        if days_until_sunday == 0:  # If today is Sunday, move to the next Sunday
+            days_until_sunday = 7
 
-    # Calculate the next Sunday's date
-    next_sunday = today + timedelta(days=days_until_sunday)
-    next_sunday = next_sunday.strftime('%Y-%m-%d')
+        # Calculate the next Sunday's date
+        next_sunday = today + timedelta(days=days_until_sunday)
+        next_sunday = next_sunday.strftime('%Y-%m-%d')
 
-    for channel in config['channels']:
-        print(f"Scheduling for channel: {channel['channelName']}")
-        youtube = authenticate_youtube(channel['tokenPath'], channel['secretPath'])
-        videos = []
-        for ward in channel['wards']:
-            start_time = datetime.fromisoformat(f"{next_sunday}T{ward['startTime']}").astimezone(pytz.utc)
-            start_time = start_time.replace(tzinfo=None)
-            print(f"\tScheduling {ward['broadcastTitle']} for {start_time.isoformat()}")
-            broadcast = retry_operation(
-                schedule_broadcast, youtube, channel['channelID'], ward['broadcastTitle'], "", start_time
-            )
-            retry_operation(bind_broadcast_to_stream, youtube, broadcast["id"], ward['streamID'])
-            video_id = retry_operation(update_broadcast, youtube, broadcast, start_time)
+        for channel in config['channels']:
+            print(f"Scheduling for channel: {channel['channelName']}")
+            report.context = f"Channel: {channel['channelName']}"
+            youtube = authenticate_youtube(channel['tokenPath'], channel['secretPath'])
+            videos = []
+            for ward in channel['wards']:
+                report.context = f"{channel['channelName']} / {ward['broadcastTitle']}"
+                local_start = pytz.timezone("America/Boise").localize(
+                    datetime.fromisoformat(f"{next_sunday}T{ward['startTime']}")
+                )
+                start_time = local_start.astimezone(pytz.utc).replace(tzinfo=None)
+                details = f"{report.context} | Scheduled: {local_start.isoformat()} (America/Boise)"
+                report.context = f"{details} | Creating broadcast"
+                print(f"\tScheduling {ward['broadcastTitle']} for {start_time.isoformat()}")
+                broadcast = retry_operation(
+                    schedule_broadcast, youtube, channel['channelID'], ward['broadcastTitle'], "", start_time,
+                    report=report
+                )
+                details += f" | https://www.youtube.com/watch?v={broadcast['id']}"
+                report.add('SUCCESS', f'{details} | Broadcast created')
+                report.context = f'{details} | Assigning stream key'
+                retry_operation(bind_broadcast_to_stream, youtube, broadcast["id"], ward['streamID'], report=report)
+                report.add('SUCCESS', f'{details} | Stream key assigned')
+                report.context = f'{details} | Updating broadcast'
+                video_id = retry_operation(update_broadcast, youtube, broadcast, start_time, report=report)
+                report.add('SUCCESS', f'{details} | Scheduling completed')
 
-            #record the video_id so that we can remove the videos later
-            videos.append({
-                "id": video_id,
-                "startTime": ward['startTime'],
-                "ward": ward['broadcastTitle']
-            })
+                #record the video_id so that we can remove the videos later
+                videos.append({
+                    "id": video_id,
+                    "startTime": ward['startTime'],
+                    "ward": ward['broadcastTitle']
+                })
 
-            #wait a little bit
-            time.sleep(5)
-        
-        #Write out the video file
-        with open(channel['videoList'], 'w') as v_file:
-            json.dump(videos, v_file)
-            v_file.close()
+                #wait a little bit
+                time.sleep(5)
+
+            #Write out the video file
+            report.context = f"{channel['channelName']} | Saving video list to {channel['videoList']}"
+            with open(channel['videoList'], 'w') as v_file:
+                json.dump(videos, v_file)
+                v_file.close()
 
 
 if __name__ == "__main__":
