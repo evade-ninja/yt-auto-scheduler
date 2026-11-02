@@ -1,4 +1,13 @@
 {
+   "smtp": {
+      "server": "smtp.example.com",
+      "port": 587,
+      "username": "scheduler@example.com",
+      "password": "replace-with-smtp-password",
+      "destination": "reports@example.com",
+      "fromAddress": "scheduler@example.com",
+      "useSsl": false
+   },
    "channels": [
       {
          "channelName": "Channel 1",
