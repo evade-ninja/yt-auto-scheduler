@@ -9,6 +9,7 @@ import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 # Required scope for scheduling and binding broadcasts
 SCOPES = ["https://www.googleapis.com/auth/youtube"]
@@ -54,19 +55,39 @@ def main():
         
         for video in video_list:
             print(f"\tHiding {video['id']}")
-            request = youtube.videos().list(part="status", id=video['id'])
-            response = request.execute()
 
-            #Only make the video private if it is public
-            if response['items'][0]['status']['privacyStatus'] == 'public':
-                newBody = response['items'][0]
-                newBody['status']['privacyStatus'] = 'private'
+            attempt = 0
+            success = False
 
-                request = youtube.videos().update(
-                    part = "status",
-                    body = newBody
-                )
-                response = request.execute()
+            while attempt < 5 and not success:
+                attempt += 1
+                print(f"\t\tAttempt {attempt}/5")
+
+                try:
+                    request = youtube.videos().list(part="status", id=video['id'])
+                    response = request.execute()
+
+                    #Only make the video private if it is public
+                    if len(response['items']) > 0:
+                        if response['items'][0]['status']['privacyStatus'] == 'public':
+                            newBody = response['items'][0]
+                            newBody['status']['privacyStatus'] = 'private'
+
+                            request = youtube.videos().update(
+                                part = "status",
+                                body = newBody
+                            )
+                            response = request.execute()
+                    else:
+                        print("Couldn't find video with ID:" + video['id'])
+                    success = True
+                except HttpError as error:
+                    print(f"\t\tError hiding {video['id']}: {error}")
+                    if attempt < 5:
+                        time.sleep(10)
+                    else:
+                        print(f"\t\tGiving up on {video['id']} after 5 attempts.")
+
             #wait a little bit
             time.sleep(5)
 

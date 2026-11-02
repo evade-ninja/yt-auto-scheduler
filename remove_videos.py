@@ -9,6 +9,7 @@ import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 # Required scope for scheduling and binding broadcasts
 SCOPES = ["https://www.googleapis.com/auth/youtube"]
@@ -53,14 +54,32 @@ def main():
             video_list = json.load(v_file)
         
         for video in video_list:
-            #If the video isn't "private", then it won't be removed
-            request = youtube.videos().list(part="status", id=video['id'])
-            response = request.execute()
+            attempt = 0
+            success = False
 
-            if response['items'][0]['status']['privacyStatus'] == 'private':
-                print(f"\tRemoving {video['id']}")
-                request = youtube.videos().delete(id=video['id'])
-                response = request.execute()
+            while attempt < 5 and not success:
+                attempt += 1
+                print(f"\t\tAttempt {attempt}/5 for {video['id']}")
+
+                try:
+                    #If the video isn't "private", then it won't be removed
+                    request = youtube.videos().list(part="status", id=video['id'])
+                    response = request.execute()
+
+                    if response['items']:
+                        if response['items'][0]['status']['privacyStatus'] == 'private':
+                            print(f"\tRemoving {video['id']}")
+                            request = youtube.videos().delete(id=video['id'])
+                            response = request.execute()
+                    else:
+                        print("Couldn't find video with ID:" + video['id'])
+                    success = True
+                except HttpError as error:
+                    print(f"\t\tError removing {video['id']}: {error}")
+                    if attempt < 5:
+                        time.sleep(10)
+                    else:
+                        print(f"\t\tGiving up on {video['id']} after 5 attempts.")
             
             #wait a little bit
             time.sleep(5)

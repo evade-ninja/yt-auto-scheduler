@@ -9,6 +9,7 @@ import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 # Required scope for scheduling and binding broadcasts
 SCOPES = ["https://www.googleapis.com/auth/youtube"]
@@ -83,6 +84,18 @@ def bind_broadcast_to_stream(youtube, broadcast_id, stream_id):
     return request.execute()
 
 
+def retry_operation(operation, *args):
+    for attempt in range(1, 6):
+        try:
+            return operation(*args)
+        except HttpError as error:
+            print(f"\t\t{operation.__name__} failed (attempt {attempt}/5): {error}")
+            if attempt == 5:
+                print(f"\t\tGiving up on {operation.__name__} after 5 attempts.")
+                raise
+            time.sleep(10)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Schedules YouTube Streams from a given config file")
     parser.add_argument("--config", required=True, help="Full path to the config file")
@@ -123,9 +136,11 @@ def main():
             start_time = datetime.fromisoformat(f"{next_sunday}T{ward['startTime']}").astimezone(pytz.utc)
             start_time = start_time.replace(tzinfo=None)
             print(f"\tScheduling {ward['broadcastTitle']} for {start_time.isoformat()}")
-            broadcast = schedule_broadcast(youtube, channel['channelID'], ward['broadcastTitle'], "", start_time)
-            bind_broadcast_to_stream(youtube, broadcast["id"], ward['streamID'])
-            video_id = update_broadcast(youtube, broadcast, start_time)
+            broadcast = retry_operation(
+                schedule_broadcast, youtube, channel['channelID'], ward['broadcastTitle'], "", start_time
+            )
+            retry_operation(bind_broadcast_to_stream, youtube, broadcast["id"], ward['streamID'])
+            video_id = retry_operation(update_broadcast, youtube, broadcast, start_time)
 
             #record the video_id so that we can remove the videos later
             videos.append({

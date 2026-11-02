@@ -1,4 +1,6 @@
 import os
+import json
+import argparse
 import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -6,18 +8,18 @@ from googleapiclient.discovery import build
 
 SCOPES = ["https://www.googleapis.com/auth/youtube"]
 
-def authenticate_youtube():
+def authenticate_youtube(tokenPath, secretPath):
     creds = None
-    if os.path.exists("token-48.json"):
-        creds = Credentials.from_authorized_user_file("token-48.json", SCOPES)
+    if os.path.exists(tokenPath):
+        creds = Credentials.from_authorized_user_file(tokenPath, SCOPES)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(google.auth.transport.requests.Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file("secrets-48.json", SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(secretPath, SCOPES)
             creds = flow.run_local_server(port=8080)
-        with open("token-48.json", "w") as token:
+        with open(tokenPath, "w") as token:
             token.write(creds.to_json())
 
     return build("youtube", "v3", credentials=creds)
@@ -47,6 +49,21 @@ def list_live_streams(youtube):
 
         print(f"{title:<30} {stream_id:<35} {ingestion_url:<45} {stream_key}")
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Lists YouTube live streams from a given config file")
+    parser.add_argument("--config", required=True, help="Full path to the config file")
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
+
+    with open(args.config) as c:
+        config = json.load(c)
+
+    for channel in config['channels']:
+        print(f"Listing live streams for channel: {channel['channelName']}")
+        youtube = authenticate_youtube(channel['tokenPath'], channel['secretPath'])
+        list_live_streams(youtube)
+
 if __name__ == "__main__":
-    youtube = authenticate_youtube()
-    list_live_streams(youtube)
+    main()
