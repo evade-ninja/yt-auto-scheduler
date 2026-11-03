@@ -23,6 +23,9 @@ the reporter rejects this combination with instructions to correct it.
 
 Reports distinguish successful actions, skipped videos, retry warnings, and
 failures. A retry that eventually succeeds is still included as an issue.
+Hide and removal reports include the channel, video title, and video ID without
+a video link. Titles come from YouTube, falling back to the saved `title` or
+`ward` when a video cannot be retrieved; otherwise the title is `Unavailable`.
 Scheduling reports include the title, date/time in America/Boise with its UTC
 offset, video link, and which of the three scheduling steps completed.
 If a scheduling step fails five times, dependent steps stop and the partial

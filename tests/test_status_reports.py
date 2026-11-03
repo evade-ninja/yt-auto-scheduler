@@ -161,9 +161,9 @@ class ScriptTests(unittest.TestCase):
         ):
             for outcome in ('success', 'skip', 'missing', 'recovered', 'failure'):
                 with self.subTest(script=filename, outcome=outcome):
-                    namespace = self.load_functions(filename, self.config(), [{'id': 'video-id'}])
+                    namespace = self.load_functions(filename, self.config(), [{'id': 'video-id', 'ward': 'Saved title'}])
                     api = namespace['authenticate_youtube'].return_value.videos.return_value
-                    items = [] if outcome == 'missing' else [{'id': 'video-id', 'status': {'privacyStatus': ineligible if outcome == 'skip' else eligible}}]
+                    items = [] if outcome == 'missing' else [{'id': 'video-id', 'snippet': {'title': 'Actual video title'}, 'status': {'privacyStatus': ineligible if outcome == 'skip' else eligible}}]
                     # Return fresh dictionaries because hiding mutates the privacy status.
                     api.list.return_value.execute.side_effect = lambda: json.loads(json.dumps({'items': items}))
                     failures = 5 if outcome == 'failure' else 2 if outcome == 'recovered' else 0
@@ -172,7 +172,13 @@ class ScriptTests(unittest.TestCase):
                         namespace['main']()
                     send.assert_called_once()
                     body = send.call_args.args[2]
-                    self.assertIn('https://www.youtube.com/watch?v=video-id', body)
+                    self.assertIn('Channel: Test Channel', body)
+                    self.assertIn('Video ID: video-id', body)
+                    self.assertIn('Title: Saved title' if outcome == 'missing' else 'Title: Actual video title', body)
+                    self.assertNotIn('https://', body)
+                    self.assertTrue(all(c.kwargs['part'] == 'status,snippet' for c in api.list.call_args_list))
+                    if filename == 'hide_videos.py' and outcome in ('success', 'recovered', 'failure'):
+                        self.assertNotIn('snippet', api.update.call_args.kwargs['body'])
                     self.assertIn({'success': 'SUCCESS:', 'skip': 'SKIPPED:', 'missing': 'WARNING:', 'recovered': 'WARNING:', 'failure': 'ERROR:'}[outcome], body)
                     self.assertIn('ISSUES' if outcome in ('missing', 'recovered', 'failure') else 'SUCCESS', send.call_args.args[1])
                     self.assertEqual(getattr(api, action).return_value.execute.call_count, 0 if outcome in ('skip', 'missing') else min(failures + 1, 5))

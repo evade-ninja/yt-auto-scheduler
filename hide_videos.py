@@ -57,7 +57,8 @@ def main():
                 video_list = json.load(v_file)
 
             for video in video_list:
-                report.context = f"{channel['channelName']} | https://www.youtube.com/watch?v={video['id']}"
+                title = video.get('title') or video.get('ward') or 'Unavailable'
+                report.context = f"Channel: {channel['channelName']} | Title: {title} | Video ID: {video['id']}"
                 print(f"\tHiding {video['id']}")
 
                 attempt = 0
@@ -68,13 +69,19 @@ def main():
                     print(f"\t\tAttempt {attempt}/5")
 
                     try:
-                        request = youtube.videos().list(part="status", id=video['id'])
+                        request = youtube.videos().list(part="status,snippet", id=video['id'])
                         response = request.execute()
+                        if response['items']:
+                            title = response['items'][0].get('snippet', {}).get('title') or title
+                            report.context = f"Channel: {channel['channelName']} | Title: {title} | Video ID: {video['id']}"
 
                         #Only make the video private if it is public
                         if len(response['items']) > 0:
                             if response['items'][0]['status']['privacyStatus'] == 'public':
-                                newBody = response['items'][0]
+                                newBody = {
+                                    'id': response['items'][0]['id'],
+                                    'status': response['items'][0]['status']
+                                }
                                 newBody['status']['privacyStatus'] = 'private'
 
                                 request = youtube.videos().update(

@@ -57,7 +57,8 @@ def main():
                 video_list = json.load(v_file)
 
             for video in video_list:
-                report.context = f"{channel['channelName']} | https://www.youtube.com/watch?v={video['id']}"
+                title = video.get('title') or video.get('ward') or 'Unavailable'
+                report.context = f"Channel: {channel['channelName']} | Title: {title} | Video ID: {video['id']}"
                 attempt = 0
                 success = False
 
@@ -67,8 +68,11 @@ def main():
 
                     try:
                         #If the video isn't "private", then it won't be removed
-                        request = youtube.videos().list(part="status", id=video['id'])
+                        request = youtube.videos().list(part="status,snippet", id=video['id'])
                         response = request.execute()
+                        if response['items']:
+                            title = response['items'][0].get('snippet', {}).get('title') or title
+                            report.context = f"Channel: {channel['channelName']} | Title: {title} | Video ID: {video['id']}"
 
                         if response['items']:
                             if response['items'][0]['status']['privacyStatus'] == 'private':
